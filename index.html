@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ノベルゲームエンジン</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700&family=Cinzel:wght@400;700&display=swap');
+
+  :root {
+    --bg-dark: #0a0a12;
+    --bg-panel: rgba(8, 8, 20, 0.88);
+    --border: rgba(180, 150, 255, 0.25);
+    --accent: #c8a8ff;
+    --accent2: #7ee8fa;
+    --text-main: #e8e0f5;
+    --text-name: #c8a8ff;
+    --shadow: 0 0 40px rgba(130, 80, 255, 0.3);
+    --choice-bg: rgba(30, 15, 60, 0.9);
+    --choice-hover: rgba(120, 60, 220, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-dark);
+    font-family: 'Noto Serif JP', serif;
+    color: var(--text-main);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ===== GAME CONTAINER ===== */
+  #game {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ===== BACKGROUND ===== */
+  #bg-layer {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transition: opacity 0.8s ease;
+    z-index: 0;
+  }
+  #bg-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(5,3,15,0.15) 0%, rgba(5,3,15,0.55) 100%);
+    z-index: 1;
+  }
+
+  /* ===== CHARACTER SPRITES ===== */
+  #sprite-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .sprite {
+    position: absolute;
+    bottom: 180px;
+    height: 65%;
+    transition: opacity 0.5s, transform 0.5s;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.8));
+  }
+  .sprite.left  { left: 6%; }
+  .sprite.center{ left: 50%; transform: translateX(-50%); }
+  .sprite.right { right: 6%; }
+  .sprite.inactive { filter: brightness(0.4) drop-shadow(0 10px 30px rgba(0,0,0,0.8)); }
+
+  /* ===== TEXT BOX ===== */
+  #textbox-wrap {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    z-index: 10;
+    padding: 0 32px 24px;
+  }
+  #textbox {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.07);
+    padding: 20px 28px 18px;
+    backdrop-filter: blur(20px);
+    cursor: pointer;
+    position: relative;
+    min-height: 110px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #textbox::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(200,168,255,0.15), transparent 50%, rgba(126,232,250,0.08));
+    pointer-events: none;
+  }
+  #speaker-name {
+    font-family: 'Cinzel', serif;
+    font-size: 0.9rem;
+    color: var(--text-name);
+    letter-spacing: 0.12em;
+    text-shadow: 0 0 12px rgba(200,168,255,0.6);
+    min-height: 1.2em;
+  }
+  #dialogue-text {
+    font-size: 1.05rem;
+    line-height: 1.9;
+    color: var(--text-main);
+    letter-spacing: 0.03em;
+  }
+  #next-arrow {
+    position: absolute;
+    bottom: 14px; right: 22px;
+    font-size: 1.2rem;
+    color: var(--accent);
+    animation: bounce 1s infinite;
+    opacity: 0.8;
+  }
+  @keyframes bounce {
+    0%,100%{ transform: translateY(0); }
+    50%{ transform: translateY(5px); }
+  }
+
+  /* ===== CHOICES ===== */
+  #choices {
+    position: absolute;
+    bottom: 180px;
+    left: 50%; transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 60%;
+    min-width: 300px;
+    max-width: 600px;
+  }
+  .choice-btn {
+    background: var(--choice-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-main);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+    padding: 14px 24px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  .choice-btn:hover {
+    background: var(--choice-hover);
+    border-color: var(--accent);
+    transform: scale(1.02);
+    box-shadow: 0 0 20px rgba(200,168,255,0.2);
+  }
+
+  /* ===== TITLE SCREEN ===== */
+  #title-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    background: radial-gradient(ellipse at 50% 40%, #1a0a35 0%, #080412 70%);
+  }
+  #title-screen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(100,60,200,0.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(60,180,220,0.08) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  #title-stars {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle var(--d) infinite var(--delay);
+  }
+  @keyframes twinkle {
+    0%,100%{ opacity:0.2; } 50%{ opacity:1; }
+  }
+  #game-title {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    letter-spacing: 0.2em;
+    text-align: center;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(200,168,255,0.6), 0 0 80px rgba(200,168,255,0.2);
+    position: relative;
+    z-index: 1;
+    padding: 0 20px;
+  }
+  #game-subtitle {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: rgba(200,168,255,0.5);
+    position: relative; z-index:1;
+  }
+  #start-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    letter-spacing: 0.25em;
+    color: var(--bg-dark);
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 6px;
+    padding: 14px 40px;
+    cursor: pointer;
+    position: relative; z-index: 1;
+    box-shadow: 0 0 30px rgba(200,168,255,0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  #start-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 50px rgba(200,168,255,0.6);
+  }
+  #editor-btn {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.15em;
+    color: rgba(200,168,255,0.55);
+    background: transparent;
+    border: 1px solid rgba(200,168,255,0.2);
+    border-radius: 6px;
+    padding: 9px 28px;
+    cursor: pointer;
+    position: relative; z-index: 1;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  #editor-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ===== EDITOR ===== */
+  #editor-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    background: #07060f;
+    display: none;
+    flex-direction: column;
+    padding: 24px;
+    gap: 12px;
+    overflow: auto;
+  }
+  #editor-screen h2 {
+    font-family: 'Cinzel', serif;
+    color: var(--accent);
+    font-size: 1.2rem;
+    letter-spacing: 0.15em;
+  }
+  #editor-screen p.hint {
+    font-size: 0.78rem;
+    color: rgba(200,168,255,0.45);
+    line-height: 1.7;
+  }
+  #story-editor {
+    flex: 1;
+    min-height: 340px;
+    background: rgba(20,12,40,0.9);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: #d0d8f0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    padding: 16px;
+    resize: vertical;
+    outline: none;
+  }
+  #story-editor:focus { border-color: var(--accent); }
+  .ed-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .ed-btn {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.82rem;
+    padding: 9px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: rgba(30,15,60,0.8);
+    color: var(--text-main);
+    transition: background 0.2s;
+  }
+  .ed-btn:hover { background: rgba(120,60,220,0.3); }
+  .ed-btn.primary { background: linear-gradient(135deg,#8b4eff,#5ca0ff); border:none; color:#fff; }
+  .ed-btn.primary:hover { opacity: 0.85; }
+
+  /* ===== FADE ===== */
+  #fade {
+    position: absolute; inset: 0; z-index: 50;
+    background: black; opacity: 0; pointer-events: none;
+    transition: opacity 0.5s;
+  }
+
+  /* ===== END SCREEN ===== */
+  #end-screen {
+    position: absolute; inset: 0; z-index: 90;
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 24px;
+    background: radial-gradient(ellipse at 50% 50%, #1a0a35 0%, #040209 70%);
+  }
+  #end-screen h2 {
+    font-family: 'Cinzel', serif;
+    font-size: 2rem;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-shadow: 0 0 30px rgba(200,168,255,0.6);
+  }
+  #end-screen p { color: rgba(200,168,255,0.5); font-size:0.9rem; letter-spacing:0.1em; }
+  #restart-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.2em;
+    color: var(--bg-dark);
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: 6px;
+    padding: 12px 36px; cursor: pointer;
+    box-shadow: 0 0 24px rgba(200,168,255,0.4);
+    transition: transform 0.2s;
+  }
+  #restart-btn:hover { transform: scale(1.05); }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(200,168,255,0.2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- STARS GENERATED BY JS -->
+<div id="game">
+  <div id="bg-layer"></div>
+  <div id="bg-overlay"></div>
+  <div id="sprite-layer"></div>
+  <div id="fade"></div>
+
+  <!-- TITLE -->
+  <div id="title-screen">
+    <div id="title-stars"></div>
+    <div id="game-title" id="title-text">YOUR NOVEL GAME</div>
+    <div id="game-subtitle">― A Visual Novel ―</div>
+    <button id="start-btn" onclick="startGame()">START</button>
+    <button id="editor-btn" onclick="openEditor()">ストーリーを編集</button>
+  </div>
+
+  <!-- GAME UI -->
+  <div id="choices"></div>
+  <div id="textbox-wrap" style="display:none">
+    <div id="textbox" onclick="handleClick()">
+      <div id="speaker-name"></div>
+      <div id="dialogue-text"></div>
+      <div id="next-arrow">▼</div>
+    </div>
+  </div>
+
+  <!-- END -->
+  <div id="end-screen">
+    <h2>END</h2>
+    <p id="end-label">― ご覧いただきありがとうございました ―</p>
+    <button id="restart-btn" onclick="restartGame()">タイトルへ戻る</button>
+  </div>
+</div>
+
+<!-- EDITOR -->
+<div id="editor-screen">
+  <h2>📖 ストーリーエディター</h2>
+  <p class="hint">
+    各シーンを <code>---</code> で区切ります。各シーン内に以下のフィールドを書いてください：<br>
+    <strong>bg:</strong> 背景のCSS(例: linear-gradient(...)またはURL) ／
+    <strong>speaker:</strong> 話者名 ／
+    <strong>text:</strong> セリフ ／
+    <strong>sprite_left/center/right:</strong> キャラのURL ／
+    <strong>active:</strong> left, center, right のどれかを指定（明るく表示）<br>
+    <strong>choices:</strong> 選択肢（"ラベル→シーン番号" を改行で複数記述）<br>
+    <strong>end:</strong> true にするとエンド画面へ ／ <strong>endlabel:</strong> エンディングのサブタイトル
+  </p>
+  <textarea id="story-editor" spellcheck="false"></textarea>
+  <div class="ed-btns">
+    <button class="ed-btn primary" onclick="saveAndClose()">保存して閉じる</button>
+    <button class="ed-btn" onclick="loadSample()">サンプルを読み込む</button>
+    <button class="ed-btn" onclick="closeEditor()">キャンセル</button>
+  </div>
+</div>
+
+<script>
+// =====================================================
+// DEFAULT SAMPLE STORY
+// =====================================================
+const SAMPLE_STORY = `bg: linear-gradient(180deg, #0d1a3a 0%, #1a2e5a 60%, #2a1a3a 100%)
+speaker: ナレーター
+text: 古い地図には、霧深い森の奥に「忘れられた神殿」があると記されていた。\n冒険者のリナは、その地図を手に旅立った。
+---
+bg: linear-gradient(180deg, #0a1a10 0%, #1a3a1a 50%, #0d2010 100%)
+speaker: リナ
+text: ここが……あの地図にあった森か。\nずいぶんと深そうだ。本当に神殿があるのだろうか。
+sprite_center: https://api.dicebear.com/7.x/adventurer/svg?seed=Lina&backgroundColor=transparent
+active: center
+---
+bg: linear-gradient(180deg, #0a1a10 0%, #1a3a1a 50%, #0d2010 100%)
+speaker: ???
+text: ……旅人よ、この先に進むのか？
+sprite_left: https://api.dicebear.com/7.x/adventurer/svg?seed=Lina&backgroundColor=transparent
+sprite_right: https://api.dicebear.com/7.x/bottts/svg?seed=spirit&backgroundColor=transparent
+active: right
+---
+bg: linear-gradient(180deg, #0a1a10 0%, #1a3a1a 50%, #0d2010 100%)
+speaker: リナ
+text: 誰だ！？\n……神殿に入りたい。どうか道を教えてくれないか。
+sprite_left: https://api.dicebear.com/7.x/adventurer/svg?seed=Lina&backgroundColor=transparent
+sprite_right: https://api.dicebear.com/7.x/bottts/svg?seed=spirit&backgroundColor=transparent
+active: left
+choices: 正面突破する→5
+  精霊に頼む→6
+---
+bg: linear-gradient(180deg, #2a1a0a 0%, #4a2a0a 50%, #2a1010 100%)
+speaker: ナレーター
+text: リナは迷わず前へ突き進んだ。\n茨が体を引き裂くが、意志が勝った。
+end: true
+endlabel: ― BAD END ―
+---
+bg: linear-gradient(180deg, #0a0a2a 0%, #1a1050 50%, #0a1a40 100%)
+speaker: 精霊
+text: ……心が清い者だ。通してあげましょう。\n神殿で何が待つか、それはあなた次第。
+sprite_center: https://api.dicebear.com/7.x/bottts/svg?seed=spirit&backgroundColor=transparent
+active: center
+---
+bg: linear-gradient(180deg, #1a0a3a 0%, #3a1a6a 50%, #1a0a50 100%)
+speaker: ナレーター
+text: 神殿の奥、光の柱が差し込む中心で、リナは古の宝珠を手にした。\n伝説の冒険は、こうして終わりを告げた。
+end: true
+endlabel: ― GOOD END ―`;
+
+// =====================================================
+// STORY ENGINE
+// =====================================================
+let scenes = [];
+let currentScene = 0;
+let isTyping = false;
+let typeTimer = null;
+let fullText = '';
+let displayedChars = 0;
+
+function parseStory(raw) {
+  return raw.trim().split(/\n---\n/).map((block, idx) => {
+    const scene = { index: idx, bg: '', speaker: '', text: '', sprites: {}, active: '', choices: [], end: false, endlabel: '' };
+    const lines = block.trim().split('\n');
+    let choiceMode = false;
+    lines.forEach(line => {
+      const m = line.match(/^(\w+):\s*(.*)/);
+      if (!m) {
+        if (choiceMode && line.trim()) {
+          const parts = line.trim().split('→');
+          if (parts.length === 2) scene.choices.push({ label: parts[0].trim(), to: parseInt(parts[1].trim()) });
+        }
+        return;
+      }
+      const [, key, val] = m;
+      choiceMode = false;
+      if (key === 'bg') scene.bg = val.trim();
+      else if (key === 'speaker') scene.speaker = val.trim();
+      else if (key === 'text') scene.text = val.replace(/\\n/g, '\n').trim();
+      else if (key === 'sprite_left') scene.sprites.left = val.trim();
+      else if (key === 'sprite_center') scene.sprites.center = val.trim();
+      else if (key === 'sprite_right') scene.sprites.right = val.trim();
+      else if (key === 'active') scene.active = val.trim();
+      else if (key === 'end') scene.end = val.trim() === 'true';
+      else if (key === 'endlabel') scene.endlabel = val.trim();
+      else if (key === 'choices') {
+        choiceMode = true;
+        if (val.trim()) {
+          const parts = val.trim().split('→');
+          if (parts.length === 2) scene.choices.push({ label: parts[0].trim(), to: parseInt(parts[1].trim()) });
+        }
+      }
+    });
+    return scene;
+  });
+}
+
+function applyScene(s) {
+  // Background
+  const bg = document.getElementById('bg-layer');
+  if (s.bg.startsWith('http') || s.bg.startsWith('/')) {
+    bg.style.backgroundImage = `url(${s.bg})`;
+    bg.style.background = '';
+  } else if (s.bg) {
+    bg.style.background = s.bg;
+    bg.style.backgroundImage = '';
+  }
+
+  // Sprites
+  const spriteLayer = document.getElementById('sprite-layer');
+  spriteLayer.innerHTML = '';
+  ['left','center','right'].forEach(pos => {
+    if (s.sprites[pos]) {
+      const img = document.createElement('img');
+      img.src = s.sprites[pos];
+      img.className = 'sprite ' + pos;
+      if (s.active && s.active !== pos) img.classList.add('inactive');
+      spriteLayer.appendChild(img);
+    }
+  });
+
+  // Speaker
+  document.getElementById('speaker-name').textContent = s.speaker || '';
+
+  // Text (typewriter)
+  fullText = s.text || '';
+  displayedChars = 0;
+  isTyping = true;
+  clearInterval(typeTimer);
+  document.getElementById('dialogue-text').textContent = '';
+  document.getElementById('next-arrow').style.display = 'none';
+  typeTimer = setInterval(() => {
+    displayedChars++;
+    document.getElementById('dialogue-text').textContent = fullText.slice(0, displayedChars);
+    if (displayedChars >= fullText.length) {
+      clearInterval(typeTimer);
+      isTyping = false;
+      if (s.choices.length === 0) document.getElementById('next-arrow').style.display = '';
+      else showChoices(s.choices);
+    }
+  }, 30);
+}
+
+function showChoices(choices) {
+  const el = document.getElementById('choices');
+  el.innerHTML = '';
+  choices.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = c.label;
+    btn.onclick = () => { el.innerHTML = ''; goToScene(c.to); };
+    el.appendChild(btn);
+  });
+}
+
+function goToScene(index) {
+  currentScene = index;
+  if (index >= scenes.length) { showEnd(''); return; }
+  const s = scenes[index];
+  if (s.end) { showEnd(s.endlabel); return; }
+  applyScene(s);
+}
+
+function handleClick() {
+  if (isTyping) {
+    clearInterval(typeTimer);
+    isTyping = false;
+    document.getElementById('dialogue-text').textContent = fullText;
+    document.getElementById('next-arrow').style.display = '';
+    const s = scenes[currentScene];
+    if (s && s.choices.length > 0) {
+      document.getElementById('next-arrow').style.display = 'none';
+      showChoices(s.choices);
+    }
+    return;
+  }
+  const s = scenes[currentScene];
+  if (s && s.choices.length > 0) return; // wait for choice
+  goToScene(currentScene + 1);
+}
+
+function showEnd(label) {
+  fadeIn(() => {
+    document.getElementById('textbox-wrap').style.display = 'none';
+    document.getElementById('choices').innerHTML = '';
+    document.getElementById('end-label').textContent = label || '― ご覧いただきありがとうございました ―';
+    document.getElementById('end-screen').style.display = 'flex';
+    fadeOut();
+  });
+}
+
+function fadeIn(cb) {
+  const f = document.getElementById('fade');
+  f.style.opacity = 1; f.style.pointerEvents = 'all';
+  setTimeout(() => { cb(); }, 500);
+}
+function fadeOut() {
+  setTimeout(() => {
+    const f = document.getElementById('fade');
+    f.style.opacity = 0; f.style.pointerEvents = 'none';
+  }, 100);
+}
+
+// =====================================================
+// TITLE / EDITOR
+// =====================================================
+function startGame() {
+  const raw = localStorage.getItem('novel_story') || SAMPLE_STORY;
+  scenes = parseStory(raw);
+  currentScene = 0;
+  document.getElementById('end-screen').style.display = 'none';
+  fadeIn(() => {
+    document.getElementById('title-screen').style.display = 'none';
+    document.getElementById('textbox-wrap').style.display = 'flex';
+    applyScene(scenes[0]);
+    fadeOut();
+  });
+}
+
+function restartGame() {
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('title-screen').style.display = 'flex';
+}
+
+function openEditor() {
+  const raw = localStorage.getItem('novel_story') || SAMPLE_STORY;
+  document.getElementById('story-editor').value = raw;
+  document.getElementById('editor-screen').style.display = 'flex';
+}
+
+function saveAndClose() {
+  localStorage.setItem('novel_story', document.getElementById('story-editor').value);
+  document.getElementById('editor-screen').style.display = 'none';
+  alert('保存しました！');
+}
+
+function closeEditor() {
+  document.getElementById('editor-screen').style.display = 'none';
+}
+
+function loadSample() {
+  document.getElementById('story-editor').value = SAMPLE_STORY;
+}
+
+// =====================================================
+// TITLE STARS
+// =====================================================
+(function() {
+  const container = document.getElementById('title-stars');
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2.5 + 0.5;
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      top:${Math.random()*100}%; left:${Math.random()*100}%;
+      --d:${(Math.random()*3+1).toFixed(1)}s;
+      --delay:-${(Math.random()*3).toFixed(1)}s;
+    `;
+    container.appendChild(s);
+  }
+})();
+
+// Update title from story
+(function() {
+  const raw = localStorage.getItem('novel_story');
+  // title stays default unless user customizes
+})();
+</script>
+</body>
+</html>
